@@ -16,11 +16,13 @@ import type React from "react";
 import { useState } from "react";
 import type { Device } from "../../stores/deviceStore";
 import { DeviceLiveScreen } from "./ActiveViewer";
+import { useMediaSession } from "./useMediaSession";
 
 type ViewerTab = "view" | "files" | "apps" | "shell";
 
 export function DeviceViewerOverlay({ device, onClose }: { device: Device; onClose: () => void }) {
   const [tab, setTab] = useState<ViewerTab>("view");
+  const media = useMediaSession(device, tab === "view");
 
   return (
     <div className="viewer-overlay" onMouseDown={onClose} role="presentation">
@@ -29,7 +31,10 @@ export function DeviceViewerOverlay({ device, onClose }: { device: Device; onClo
           <header className="viewer-header">
             <div className="viewer-title">
               <strong>{device.name}</strong>
-              <span>{device.connection === "online" ? "LIVE" : device.connection.toUpperCase()}</span>
+              <span>
+                {device.connection === "online" ? "LIVE" : device.connection.toUpperCase()}
+                {media.profile ? ` / ${media.profile.name} ${media.profile.fps}fps` : ""}
+              </span>
             </div>
             <div className="viewer-tabs" role="tablist" aria-label="Viewer modes">
               <ViewerTabButton tab="view" active={tab === "view"} onClick={setTab} />
@@ -46,6 +51,9 @@ export function DeviceViewerOverlay({ device, onClose }: { device: Device; onClo
             {tab === "view" ? (
               <div className="viewer-main">
                 <div className="viewer-canvas-wrap">
+                  <div className={`media-session-chip ${media.status}`}>
+                    {media.status === "error" ? media.error : media.session?.sessionId ?? "Creating media session"}
+                  </div>
                   <DeviceLiveScreen device={device} />
                 </div>
                 <ViewerActions />

@@ -1109,10 +1109,38 @@ select:focus-visible {
 }
 
 .viewer-canvas-wrap {
+  position: relative;
   height: min(76vh, 820px);
   min-height: 560px;
   overflow: hidden;
   background: #878786;
+}
+
+.media-session-chip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  max-width: min(360px, calc(100% - 24px));
+  overflow: hidden;
+  padding: 6px 10px;
+  border: 1px solid rgba(32, 212, 255, 0.32);
+  border-radius: 8px;
+  color: #dffbff;
+  background: rgba(5, 11, 18, 0.72);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+.media-session-chip.ready {
+  border-color: rgba(0, 230, 118, 0.42);
+}
+
+.media-session-chip.error {
+  border-color: rgba(255, 107, 107, 0.5);
+  color: #ffd8d8;
 }
 
 .viewer-canvas-wrap .agent-screen,
