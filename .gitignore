@@ -1,11 +1,13 @@
 node_modules/
 dist/
 .vite/
+.gradle/
 .env
 .env.*
 *.log
 *.tmp
 *.tsbuildinfo
+gradle-wrapper-shared.jar
 
 # Local reference material and generated archives
 .reference/
