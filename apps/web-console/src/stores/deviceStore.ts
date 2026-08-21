@@ -21,6 +21,17 @@ export type Device = {
   group: string;
 };
 
+export type DeviceSession = {
+  deviceId: string;
+  sessionId: string;
+  nodeId: string;
+  protocolVersion: string;
+  agentVersion: string;
+  connectedAt: string;
+  lastHeartbeatAt: string;
+  online: boolean;
+};
+
 const statuses: DeviceConnection[] = [
   "online",
   "online",
@@ -62,6 +73,7 @@ type DeviceState = {
   filter: "all" | "apk" | "usb" | "wifi";
   selectDevice: (id: string) => void;
   setFilter: (filter: DeviceState["filter"]) => void;
+  mergeSessions: (sessions: DeviceSession[]) => void;
 };
 
 export const useDeviceStore = create<DeviceState>((set) => ({
@@ -70,6 +82,31 @@ export const useDeviceStore = create<DeviceState>((set) => ({
   filter: "all",
   selectDevice: (id) => set({ selectedDeviceId: id }),
   setFilter: (filter) => set({ filter }),
+  mergeSessions: (sessions) =>
+    set((state) => {
+      const byId = new Map(state.devices.map((device) => [device.id, device]));
+      for (const [idx, session] of sessions.entries()) {
+        const existing = byId.get(session.deviceId);
+        byId.set(session.deviceId, {
+          id: session.deviceId,
+          index: existing?.index ?? idx + 1,
+          name: existing?.name ?? session.deviceId,
+          model: existing?.model ?? "Android device",
+          androidApi: existing?.androidApi ?? 0,
+          connection: session.online ? "online" : "offline",
+          transport: "APK",
+          readiness: session.protocolVersion ? "v2" : "setup",
+          streamProfile: existing?.streamProfile ?? "THUMB_STD",
+          fps: existing?.fps ?? 15,
+          bitrateKbps: existing?.bitrateKbps ?? 220,
+          accessibility: existing?.accessibility ?? false,
+          capture: existing?.capture ?? false,
+          latencyMs: existing?.latencyMs ?? 0,
+          group: existing?.group ?? "live",
+        });
+      }
+      return { devices: Array.from(byId.values()).sort((left, right) => left.index - right.index) };
+    }),
 }));
 
 export function getConnectionLabel(connection: DeviceConnection) {

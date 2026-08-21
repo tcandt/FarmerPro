@@ -4,12 +4,14 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { DeviceGrid } from "../features/device-grid/DeviceGrid";
+import { useDeviceSessions } from "../features/device-grid/useDeviceSessions";
 import { DeviceViewerOverlay } from "../features/viewer/DeviceViewerOverlay";
 import { RightRail } from "../features/sync/RightRail";
 import { useDeviceStore } from "../stores/deviceStore";
 import { useSyncStore } from "../stores/syncStore";
 
 export function App() {
+  useDeviceSessions();
   const [viewerDeviceId, setViewerDeviceId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const devices = useDeviceStore((state) => state.devices);

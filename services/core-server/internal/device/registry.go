@@ -12,6 +12,11 @@ type Registry struct {
 	sessions map[string]Session
 }
 
+type SessionView struct {
+	Session
+	Online bool `json:"online"`
+}
+
 func NewRegistry() *Registry {
 	return &Registry{sessions: map[string]Session{}}
 }
@@ -48,7 +53,20 @@ func (r *Registry) List() []Session {
 	return out
 }
 
+func (r *Registry) ListViews(now time.Time) []SessionView {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]SessionView, 0, len(r.sessions))
+	for _, session := range r.sessions {
+		out = append(out, SessionView{
+			Session: session,
+			Online:  session.Online(now),
+		})
+	}
+	return out
+}
+
 func (r *Registry) HandleDevices(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(r.List())
+	_ = json.NewEncoder(w).Encode(r.ListViews(time.Now()))
 }
