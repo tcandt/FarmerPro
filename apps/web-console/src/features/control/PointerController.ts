@@ -8,6 +8,7 @@ export type PointerCommand = {
   deviceId: string;
   type: PointerCommandType;
   point: NormalizedPoint;
+  pointerId: number;
   createdAt: number;
 };
 
@@ -23,6 +24,7 @@ export function createPointerCommand(
     deviceId,
     type,
     point: normalizePointerPoint(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()),
+    pointerId: event.pointerId,
     createdAt: performance.now(),
   };
 }

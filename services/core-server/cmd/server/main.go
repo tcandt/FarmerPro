@@ -14,7 +14,7 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	registry := device.NewRegistry()
-	hub := control.NewHub(registry)
+	hub := control.NewHub(registry, logger)
 	signals := signaling.NewService()
 	mediaService := media.NewService()
 
@@ -25,6 +25,8 @@ func main() {
 	})
 	mux.HandleFunc("/v1/devices", registry.HandleDevices)
 	mux.HandleFunc("/v1/control", hub.HandleControl)
+	mux.HandleFunc("/v1/control/browser", hub.HandleBrowserWS)
+	mux.HandleFunc("/v1/control/agent", hub.HandleAgentWS)
 	mux.HandleFunc("/v1/signaling", signals.HandleSignaling)
 	mux.HandleFunc("/v1/media", mediaService.HandleMedia)
 

@@ -1,6 +1,7 @@
 import { Eye, Loader2, MousePointer2, RotateCw, Signal, WifiOff } from "lucide-react";
 import type React from "react";
 import { AndroidNav } from "./AndroidNav";
+import { controlTransport } from "../control/ControlTransport";
 import { createPointerCommand } from "../control/PointerController";
 import { DeviceLiveScreen } from "../viewer/ActiveViewer";
 import { getConnectionLabel, type Device } from "../../stores/deviceStore";
@@ -20,14 +21,31 @@ export function DeviceTile({
   const selectDevice = useDeviceStore((state) => state.selectDevice);
   const masterDeviceId = useSyncStore((state) => state.masterDeviceId);
   const followerIds = useSyncStore((state) => state.followerIds);
+  const syncEnabled = useSyncStore((state) => state.enabled);
   const selected = selectedDeviceId === device.id;
   const isMaster = masterDeviceId === device.id;
   const isFollower = followerIds.includes(device.id);
 
-  const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
+  const getTargets = () => {
+    if (!syncEnabled || device.id !== masterDeviceId) {
+      return [device.id];
+    }
+    return Array.from(new Set([device.id, ...followerIds]));
+  };
+
+  const sendPointer = (type: "DOWN" | "MOVE" | "UP", event: React.PointerEvent<HTMLElement>) => {
     if (isViewing) return;
     selectDevice(device.id);
-    console.debug("normalized-control", createPointerCommand("DOWN", device.id, event));
+    const command = createPointerCommand(type, device.id, event);
+    controlTransport.sendPointer(command, {
+      groupId: syncEnabled && device.id === masterDeviceId ? "sync-group" : undefined,
+      targetDeviceIds: getTargets(),
+    });
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sendPointer("DOWN", event);
   };
 
   return (
@@ -62,7 +80,20 @@ export function DeviceTile({
         </div>
       </header>
 
-      <section className="tile-screen-wrap" onPointerDown={handlePointerDown}>
+      <section
+        className="tile-screen-wrap"
+        onPointerDown={handlePointerDown}
+        onPointerMove={(event) => {
+          if (event.buttons > 0) sendPointer("MOVE", event);
+        }}
+        onPointerUp={(event) => {
+          sendPointer("UP", event);
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={(event) => {
+          sendPointer("UP", event);
+        }}
+      >
         {isViewing ? (
           <div className="tile-viewing-overlay">
             <MousePointer2 size={34} />

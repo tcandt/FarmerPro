@@ -14,6 +14,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import type React from "react";
+import { controlTransport } from "../control/ControlTransport";
 import { useDeviceStore } from "../../stores/deviceStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useSyncStore } from "../../stores/syncStore";
@@ -26,6 +27,7 @@ export function RightRail({
   onToggleCollapsed: () => void;
 }) {
   const devices = useDeviceStore((state) => state.devices);
+  const selectedDeviceId = useDeviceStore((state) => state.selectedDeviceId);
   const filter = useDeviceStore((state) => state.filter);
   const setFilter = useDeviceStore((state) => state.setFilter);
   const tileWidth = useLayoutStore((state) => state.tileWidth);
@@ -43,6 +45,17 @@ export function RightRail({
   const followerIds = useSyncStore((state) => state.followerIds);
   const toggleFollower = useSyncStore((state) => state.toggleFollower);
   const selectFollowers = useSyncStore((state) => state.selectFollowers);
+  const masterDeviceId = useSyncStore((state) => state.masterDeviceId);
+
+  const controlTargetId = syncEnabled ? masterDeviceId : selectedDeviceId;
+  const controlTargetIds = syncEnabled ? Array.from(new Set([masterDeviceId, ...followerIds])) : [selectedDeviceId];
+  const sendAction = (type: "BACK" | "HOME" | "RECENT" | "POWER" | "VOLUME_UP" | "VOLUME_DOWN" | "MUTE") => {
+    controlTransport.sendAction(type, {
+      deviceId: controlTargetId,
+      groupId: syncEnabled ? "sync-group" : undefined,
+      targetDeviceIds: controlTargetIds,
+    });
+  };
 
   return (
     <aside className={`right-rail ${collapsed ? "collapsed" : ""}`} aria-label="Console controls">
@@ -58,10 +71,10 @@ export function RightRail({
 
       {collapsed ? (
         <div className="rail-mini-actions" aria-label="Collapsed quick controls">
-          <QuickButton label="Power" icon={<Power size={17} strokeWidth={1.8} />} />
-          <QuickButton label="Back" icon={<ArrowLeft size={17} strokeWidth={1.8} />} />
-          <QuickButton label="Home" icon={<Home size={17} strokeWidth={1.8} />} />
-          <QuickButton label="Mute" icon={<VolumeX size={17} strokeWidth={1.8} />} />
+          <QuickButton label="Power" icon={<Power size={17} strokeWidth={1.8} />} onClick={() => sendAction("POWER")} />
+          <QuickButton label="Back" icon={<ArrowLeft size={17} strokeWidth={1.8} />} onClick={() => sendAction("BACK")} />
+          <QuickButton label="Home" icon={<Home size={17} strokeWidth={1.8} />} onClick={() => sendAction("HOME")} />
+          <QuickButton label="Mute" icon={<VolumeX size={17} strokeWidth={1.8} />} onClick={() => sendAction("MUTE")} />
           <span className="rail-mini-count">{followerIds.length}</span>
         </div>
       ) : null}
@@ -94,13 +107,13 @@ export function RightRail({
         }
       >
         <div className="quick-grid">
-          <QuickButton label="Power" icon={<Power size={18} />} />
-          <QuickButton label="Volume up" icon={<Volume2 size={18} />} />
-          <QuickButton label="Volume down" icon={<Volume1 size={18} />} />
-          <QuickButton label="Mute" icon={<VolumeX size={18} />} />
-          <QuickButton label="Back" icon={<ArrowLeft size={18} />} />
-          <QuickButton label="Home" icon={<Home size={18} />} />
-          <QuickButton label="Recent apps" icon={<Menu size={18} />} />
+          <QuickButton label="Power" icon={<Power size={18} />} onClick={() => sendAction("POWER")} />
+          <QuickButton label="Volume up" icon={<Volume2 size={18} />} onClick={() => sendAction("VOLUME_UP")} />
+          <QuickButton label="Volume down" icon={<Volume1 size={18} />} onClick={() => sendAction("VOLUME_DOWN")} />
+          <QuickButton label="Mute" icon={<VolumeX size={18} />} onClick={() => sendAction("MUTE")} />
+          <QuickButton label="Back" icon={<ArrowLeft size={18} />} onClick={() => sendAction("BACK")} />
+          <QuickButton label="Home" icon={<Home size={18} />} onClick={() => sendAction("HOME")} />
+          <QuickButton label="Recent apps" icon={<Menu size={18} />} onClick={() => sendAction("RECENT")} />
           <QuickButton label="Screenshot" icon={<Camera size={18} />} />
         </div>
       </Panel>
@@ -212,9 +225,9 @@ function SliderRow({
   );
 }
 
-function QuickButton({ label, icon }: { label: string; icon: React.ReactNode }) {
+function QuickButton({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick?: () => void }) {
   return (
-    <button type="button" aria-label={label} title={label}>
+    <button type="button" aria-label={label} title={label} onClick={onClick}>
       {icon}
     </button>
   );

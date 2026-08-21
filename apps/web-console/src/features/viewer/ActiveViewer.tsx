@@ -1,12 +1,34 @@
 import { MonitorPlay, RotateCcw, Signal, Smartphone, Zap } from "lucide-react";
 import type React from "react";
 import { AndroidNav } from "../device-grid/AndroidNav";
+import { controlTransport } from "../control/ControlTransport";
 import { createPointerCommand } from "../control/PointerController";
 import type { Device } from "../../stores/deviceStore";
+import { useSyncStore } from "../../stores/syncStore";
 
 export function ActiveViewer({ device }: { device: Device }) {
+  const syncEnabled = useSyncStore((state) => state.enabled);
+  const masterDeviceId = useSyncStore((state) => state.masterDeviceId);
+  const followerIds = useSyncStore((state) => state.followerIds);
+
+  const getTargets = () => {
+    if (!syncEnabled || device.id !== masterDeviceId) {
+      return [device.id];
+    }
+    return Array.from(new Set([device.id, ...followerIds]));
+  };
+
+  const sendPointer = (type: "DOWN" | "MOVE" | "UP", event: React.PointerEvent<HTMLElement>) => {
+    const command = createPointerCommand(type, device.id, event);
+    controlTransport.sendPointer(command, {
+      groupId: syncEnabled && device.id === masterDeviceId ? "sync-group" : undefined,
+      targetDeviceIds: getTargets(),
+    });
+  };
+
   const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    console.debug("normalized-control", createPointerCommand("DOWN", device.id, event));
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sendPointer("DOWN", event);
   };
 
   return (
@@ -30,7 +52,20 @@ export function ActiveViewer({ device }: { device: Device }) {
             <RotateCcw size={16} />
           </button>
         </div>
-        <article className="phone-screen active" onPointerDown={handlePointerDown}>
+        <article
+          className="phone-screen active"
+          onPointerDown={handlePointerDown}
+          onPointerMove={(event) => {
+            if (event.buttons > 0) sendPointer("MOVE", event);
+          }}
+          onPointerUp={(event) => {
+            sendPointer("UP", event);
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }}
+          onPointerCancel={(event) => {
+            sendPointer("UP", event);
+          }}
+        >
           <DeviceLiveScreen device={device} />
         </article>
         <AndroidNav />

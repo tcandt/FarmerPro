@@ -26,6 +26,18 @@ func (r *Registry) Upsert(session Session) {
 	r.sessions[session.DeviceID] = session
 }
 
+func (r *Registry) Heartbeat(deviceID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	session := r.sessions[deviceID]
+	session.DeviceID = deviceID
+	if session.ConnectedAt.IsZero() {
+		session.ConnectedAt = time.Now()
+	}
+	session.LastHeartbeatAt = time.Now()
+	r.sessions[deviceID] = session
+}
+
 func (r *Registry) List() []Session {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
