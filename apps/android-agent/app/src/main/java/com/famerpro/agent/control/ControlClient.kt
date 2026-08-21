@@ -22,6 +22,7 @@ class ControlClient(
         .pingInterval(10, TimeUnit.SECONDS)
         .build(),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val guard: CommandGuard = CommandGuard(),
 ) {
     @Volatile
     private var stopped = false
@@ -77,7 +78,10 @@ class ControlClient(
         private fun enqueue(payload: String) {
             val command = runCatching { ControlWireCodec.decode(payload) }.getOrNull() ?: return
             scope.launch {
-                queue.offer(command)
+                when (guard.accept(command)) {
+                    GuardResult.Accepted -> queue.offer(command)
+                    is GuardResult.Rejected -> Unit
+                }
             }
         }
     }

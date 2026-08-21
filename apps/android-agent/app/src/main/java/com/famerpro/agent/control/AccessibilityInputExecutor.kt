@@ -44,6 +44,9 @@ private class GestureSessionStore {
 
     suspend fun down(service: AccessibilityService, command: ControlCommand): ExecutionResult =
         mutex.withLock {
+            if (sessions.containsKey(command.pointerId)) {
+                return ExecutionResult(command.commandId, accepted = false, reason = "gesture_session_exists")
+            }
             val point = command.toScreenPoint(service)
             val stroke = newStroke(point, willContinue = true)
             sessions[command.pointerId] = GestureSession(point.x, point.y, stroke)
@@ -68,7 +71,7 @@ private class GestureSessionStore {
     suspend fun up(service: AccessibilityService, command: ControlCommand): ExecutionResult =
         mutex.withLock {
             val session = sessions.remove(command.pointerId)
-                ?: return tap(service, command)
+                ?: return ExecutionResult(command.commandId, accepted = false, reason = "gesture_session_missing")
             val point = command.toScreenPoint(service)
             val stroke = session.stroke.continueStroke(
                 pathFrom(session.x, session.y, point.x, point.y),
@@ -78,11 +81,6 @@ private class GestureSessionStore {
             )
             dispatch(service, command, stroke)
         }
-
-    private suspend fun tap(service: AccessibilityService, command: ControlCommand): ExecutionResult {
-        val point = command.toScreenPoint(service)
-        return dispatch(service, command, newStroke(point, willContinue = false))
-    }
 
     private suspend fun dispatch(
         service: AccessibilityService,
