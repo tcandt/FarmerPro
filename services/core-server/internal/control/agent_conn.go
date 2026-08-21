@@ -13,20 +13,22 @@ type outboundCommand struct {
 }
 
 type agentConn struct {
-	deviceID string
-	conn     *websocket.Conn
-	send     chan outboundCommand
+	deviceID  string
+	sessionID string
+	conn      *websocket.Conn
+	send      chan outboundCommand
 
 	mu         sync.Mutex
 	closed     bool
 	latestMove *outboundCommand
 }
 
-func newAgentConn(deviceID string, conn *websocket.Conn) *agentConn {
+func newAgentConn(deviceID string, sessionID string, conn *websocket.Conn) *agentConn {
 	return &agentConn{
-		deviceID: deviceID,
-		conn:     conn,
-		send:     make(chan outboundCommand, 128),
+		deviceID:  deviceID,
+		sessionID: sessionID,
+		conn:      conn,
+		send:      make(chan outboundCommand, 128),
 	}
 }
 
@@ -82,22 +84,22 @@ func (a *agentConn) writePump() {
 	}
 }
 
-func (a *agentConn) readPump(onHeartbeat func()) {
+func (a *agentConn) readPump(onMessage func([]byte)) {
 	defer a.close()
 	a.conn.SetReadLimit(4096)
 	_ = a.conn.SetReadDeadline(time.Now().Add(pongWait))
 	a.conn.SetPongHandler(func(string) error {
 		_ = a.conn.SetReadDeadline(time.Now().Add(pongWait))
-		onHeartbeat()
+		onMessage(nil)
 		return nil
 	})
 
 	for {
-		_, _, err := a.conn.ReadMessage()
+		_, payload, err := a.conn.ReadMessage()
 		if err != nil {
 			return
 		}
-		onHeartbeat()
+		onMessage(payload)
 	}
 }
 

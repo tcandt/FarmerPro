@@ -12,6 +12,12 @@ enum ControlType {
   CONTROL_TYPE_BACK = 4;
   CONTROL_TYPE_HOME = 5;
   CONTROL_TYPE_RECENT = 6;
+  CONTROL_TYPE_KEY = 7;
+  CONTROL_TYPE_PROFILE_CHANGE = 8;
+  CONTROL_TYPE_POWER = 9;
+  CONTROL_TYPE_VOLUME_UP = 10;
+  CONTROL_TYPE_VOLUME_DOWN = 11;
+  CONTROL_TYPE_MUTE = 12;
 }
 
 message ControlCommand {
@@ -24,4 +30,7 @@ message ControlCommand {
   float y_norm = 7;
   uint32 pointer_id = 8;
   int64 execute_at_mono = 9;
+  string control_epoch = 10;
+  string session_id = 11;
+  int64 gateway_at_mono = 12;
 }

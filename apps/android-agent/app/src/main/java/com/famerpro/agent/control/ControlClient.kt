@@ -3,6 +3,7 @@ package com.famerpro.agent.control
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -11,6 +12,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -26,7 +28,18 @@ class ControlClient(
 ) {
     @Volatile
     private var stopped = false
+    @Volatile
+    private var activeSessionId: String? = null
     private var webSocket: WebSocket? = null
+    private val ingress = Channel<IngressMessage>(capacity = 512)
+
+    init {
+        scope.launch {
+            for (message in ingress) {
+                handleIngress(message)
+            }
+        }
+    }
 
     fun start() {
         stopped = false
@@ -40,9 +53,11 @@ class ControlClient(
     }
 
     private fun connect() {
-        val url = buildAgentUrl()
+        val sessionId = UUID.randomUUID().toString()
+        activeSessionId = sessionId
+        val url = buildAgentUrl(sessionId)
         val request = Request.Builder().url(url).build()
-        webSocket = client.newWebSocket(request, Listener())
+        webSocket = client.newWebSocket(request, Listener(sessionId))
     }
 
     private fun scheduleReconnect() {
@@ -53,18 +68,39 @@ class ControlClient(
         }
     }
 
-    private fun buildAgentUrl(): String {
-        val sessionId = UUID.randomUUID().toString()
+    private fun buildAgentUrl(sessionId: String): String {
         return "$serverWsUrl?deviceId=$deviceId&sessionId=$sessionId&protocolVersion=v1&agentVersion=0.1.0"
     }
 
-    private inner class Listener : WebSocketListener() {
+    private suspend fun handleIngress(message: IngressMessage) {
+        if (message.connectionSessionId != activeSessionId) {
+            reject(message.webSocket, null, "stale_connection")
+            return
+        }
+        val command = runCatching { ControlWireCodec.decode(message.payload) }.getOrNull() ?: return
+        when (val result = guard.accept(command, message.connectionSessionId)) {
+            GuardResult.Accepted -> queue.offer(command)
+            is GuardResult.Rejected -> reject(message.webSocket, command.commandId, result.reason)
+        }
+    }
+
+    private fun reject(webSocket: WebSocket, commandId: String?, reason: String) {
+        val message = JSONObject()
+            .put("type", "command_rejected")
+            .put("commandId", commandId ?: "")
+            .put("reason", reason)
+        webSocket.send(message.toString())
+    }
+
+    private inner class Listener(
+        private val connectionSessionId: String,
+    ) : WebSocketListener() {
         override fun onMessage(webSocket: WebSocket, text: String) {
-            enqueue(text)
+            enqueue(webSocket, text)
         }
 
         override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-            enqueue(bytes.utf8())
+            enqueue(webSocket, bytes.utf8())
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -75,14 +111,14 @@ class ControlClient(
             scheduleReconnect()
         }
 
-        private fun enqueue(payload: String) {
-            val command = runCatching { ControlWireCodec.decode(payload) }.getOrNull() ?: return
-            scope.launch {
-                when (guard.accept(command)) {
-                    GuardResult.Accepted -> queue.offer(command)
-                    is GuardResult.Rejected -> Unit
-                }
-            }
+        private fun enqueue(webSocket: WebSocket, payload: String) {
+            ingress.trySend(IngressMessage(payload, connectionSessionId, webSocket))
         }
     }
+
+    private data class IngressMessage(
+        val payload: String,
+        val connectionSessionId: String,
+        val webSocket: WebSocket,
+    )
 }

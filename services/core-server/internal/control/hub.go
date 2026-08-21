@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/famerpro/core-server/internal/device"
@@ -25,8 +26,13 @@ type Hub struct {
 	logger      *slog.Logger
 	upgrader    websocket.Upgrader
 
-	mu     sync.RWMutex
-	agents map[string]*agentConn
+	mu      sync.RWMutex
+	agents  map[string]*agentConn
+	metrics ControlMetrics
+}
+
+type ControlMetrics struct {
+	AgentGuardRejected atomic.Uint64
 }
 
 func NewHub(registry *device.Registry, logger *slog.Logger) *Hub {
@@ -116,21 +122,23 @@ func (h *Hub) HandleAgentWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agent := newAgentConn(deviceID, conn)
+	sessionID := r.URL.Query().Get("sessionId")
+	agent := newAgentConn(deviceID, sessionID, conn)
 	h.registerAgent(agent)
 	defer h.unregisterAgent(agent)
 
 	h.registry.Upsert(device.Session{
 		DeviceID:        deviceID,
-		SessionID:       r.URL.Query().Get("sessionId"),
+		SessionID:       sessionID,
 		NodeID:          r.URL.Query().Get("nodeId"),
 		ProtocolVersion: r.URL.Query().Get("protocolVersion"),
 		AgentVersion:    r.URL.Query().Get("agentVersion"),
 	})
 
 	go agent.writePump()
-	agent.readPump(func() {
+	agent.readPump(func(payload []byte) {
 		h.registry.Heartbeat(deviceID)
+		h.handleAgentMessage(agent, payload)
 	})
 }
 
@@ -148,23 +156,28 @@ func (h *Hub) dispatch(command Command) (Command, error) {
 		return Command{}, errors.New("at least one target device is required")
 	}
 
-	payload, err := json.Marshal(command)
-	if err != nil {
-		return Command{}, err
-	}
-
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
+	dispatched := command
 	for _, deviceID := range targets {
 		agent := h.agents[deviceID]
 		if agent == nil {
 			continue
 		}
-		agent.enqueue(command, payload)
+		targeted := command
+		targeted.DeviceID = deviceID
+		targeted.SessionID = agent.sessionID
+
+		payload, err := json.Marshal(targeted)
+		if err != nil {
+			return Command{}, err
+		}
+		agent.enqueue(targeted, payload)
+		dispatched = targeted
 	}
 
-	return command, nil
+	return dispatched, nil
 }
 
 func (h *Hub) registerAgent(agent *agentConn) {
@@ -174,7 +187,7 @@ func (h *Hub) registerAgent(agent *agentConn) {
 		old.close()
 	}
 	h.agents[agent.deviceID] = agent
-	h.logger.Info("agent connected", "deviceId", agent.deviceID)
+	h.logger.Info("agent connected", "deviceId", agent.deviceID, "sessionId", agent.sessionID)
 }
 
 func (h *Hub) unregisterAgent(agent *agentConn) {
@@ -184,7 +197,32 @@ func (h *Hub) unregisterAgent(agent *agentConn) {
 		delete(h.agents, agent.deviceID)
 	}
 	agent.close()
-	h.logger.Info("agent disconnected", "deviceId", agent.deviceID)
+	h.logger.Info("agent disconnected", "deviceId", agent.deviceID, "sessionId", agent.sessionID)
+}
+
+func (h *Hub) handleAgentMessage(agent *agentConn, payload []byte) {
+	if len(payload) == 0 {
+		return
+	}
+	var message struct {
+		Type      string `json:"type"`
+		CommandID string `json:"commandId"`
+		Reason    string `json:"reason"`
+	}
+	if err := json.Unmarshal(payload, &message); err != nil {
+		return
+	}
+	if message.Type != "command_rejected" {
+		return
+	}
+	h.metrics.AgentGuardRejected.Add(1)
+	h.logger.Warn(
+		"agent rejected control command",
+		"deviceId", agent.deviceID,
+		"sessionId", agent.sessionID,
+		"commandId", message.CommandID,
+		"reason", message.Reason,
+	)
 }
 
 func writeJSON(conn *websocket.Conn, value any) error {

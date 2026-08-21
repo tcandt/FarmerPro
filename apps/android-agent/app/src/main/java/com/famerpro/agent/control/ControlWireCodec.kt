@@ -8,6 +8,8 @@ object ControlWireCodec {
         return ControlCommand(
             commandId = json.getString("commandId"),
             sequence = json.optLong("sequence", 0),
+            controlEpoch = json.optString("controlEpoch"),
+            sessionId = json.optString("sessionId"),
             groupId = json.optString("groupId").ifBlank { null },
             deviceId = json.getString("deviceId"),
             type = decodeType(json.optInt("type", 0)),

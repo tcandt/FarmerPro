@@ -21,6 +21,8 @@ const (
 type Command struct {
 	CommandID       string      `json:"commandId"`
 	Sequence        uint64      `json:"sequence"`
+	ControlEpoch    string      `json:"controlEpoch"`
+	SessionID       string      `json:"sessionId,omitempty"`
 	GroupID         string      `json:"groupId,omitempty"`
 	DeviceID        string      `json:"deviceId"`
 	TargetDeviceIDs []string    `json:"targetDeviceIds,omitempty"`

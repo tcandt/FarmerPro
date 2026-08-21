@@ -19,6 +19,8 @@ enum class ControlType {
 data class ControlCommand(
     val commandId: String,
     val sequence: Long,
+    val controlEpoch: String,
+    val sessionId: String,
     val groupId: String?,
     val deviceId: String,
     val type: ControlType,
