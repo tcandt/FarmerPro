@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+.env
+.env.*
+*.log
+*.tmp
+*.tsbuildinfo
+
+# Local reference material and generated archives
+.reference/
+*.zip

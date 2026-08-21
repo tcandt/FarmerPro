@@ -1,0 +1,14 @@
+{
+  "name": "famerpro",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web-console run dev",
+    "build:web": "npm --workspace apps/web-console run build",
+    "preview:web": "npm --workspace apps/web-console run preview"
+  }
+}

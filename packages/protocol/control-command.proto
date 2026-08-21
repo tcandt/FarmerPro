@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package famerpro.control.v1;
+
+option go_package = "github.com/famerpro/protocol/controlv1";
+
+enum ControlType {
+  CONTROL_TYPE_UNSPECIFIED = 0;
+  CONTROL_TYPE_DOWN = 1;
+  CONTROL_TYPE_MOVE = 2;
+  CONTROL_TYPE_UP = 3;
+  CONTROL_TYPE_BACK = 4;
+  CONTROL_TYPE_HOME = 5;
+  CONTROL_TYPE_RECENT = 6;
+}
+
+message ControlCommand {
+  string command_id = 1;
+  uint64 sequence = 2;
+  string group_id = 3;
+  string device_id = 4;
+  ControlType type = 5;
+  float x_norm = 6;
+  float y_norm = 7;
+  uint32 pointer_id = 8;
+  int64 execute_at_mono = 9;
+}
